@@ -1,11 +1,11 @@
 import os
 
-from flask import Flask, render_template, request, flash, redirect, session, g
+from flask import Flask, render_template, request, flash, redirect, session, g, abort
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
-from models import db, connect_db, User, Message, Follows
+from models import db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
 
@@ -64,7 +64,11 @@ def signup():
     If the there already is a user with that username: flash message
     and re-present form.
     """
-
+    # Jared's Implementation:
+    # Technically the solution, but put Jared's for easy control-f searching.
+    # For whatever reason, this line(s) was added for the purpose of checking if a user was already logged in, while trying to create a new account? An odd edge case to cover, but I suppose a good idea. My question is, why was it in the solution, not in the original source code, and why wasn't I prompted to add it, if it was necessary?
+    if CURR_USER_KEY in session:
+        del session[CURR_USER_KEY]
     form = UserAddForm()
 
     if form.validate_on_submit():
@@ -169,7 +173,7 @@ def show_following(user_id):
     """Show list of people this user is following."""
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     user = User.query.get_or_404(user_id)
@@ -181,7 +185,7 @@ def users_followers(user_id):
     """Show list of followers of this user."""
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     user = User.query.get_or_404(user_id)
@@ -193,7 +197,7 @@ def add_follow(follow_id):
     """Add a follow for the currently-logged-in user."""
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     followed_user = User.query.get_or_404(follow_id)
@@ -208,7 +212,7 @@ def stop_following(follow_id):
     """Have currently-logged-in-user stop following this user."""
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     followed_user = User.query.get(follow_id)
@@ -218,8 +222,45 @@ def stop_following(follow_id):
     return redirect(f"/users/{g.user.id}/following")
 
 
+@app.route('/users/<int:user_id>/likes', methods=["GET"])
+def show_likes(user_id):
+    # Jared's Implementation:
+    # Part Two: Show likes.
+    # I had some of this planned out, but honestly thought I would need the logic and queries from 'following_messages' at '/' to implement this. Turns out, this was as simple as I was hoping '/' would be. The logic already existed, I just had to call it.
+    if not g.user:
+        flash("Access Unauthorized", "danger")
+        return redirect("/")
+
+    user = User.query.get_or_404(user_id)
+    return render_template('users/likes.html', user=user, likes=user.likes)
+
+
+@app.route('/messages/<int:message_id>/like', methods=['POST'])
+def add_like(message_id):
+    """ Toggle a liked message for the currently-logged-in user."""
+
+    if not g.user:
+        flash("Access Unauthorized", "danger")
+        return redirect("/")
+
+    liked_message = Message.query.get_or_404(message_id)
+    if liked_message.user_id == g.user.id:
+        return abort(403)
+
+    user_likes = g.user.likes
+
+    if liked_message in user_likes:
+        g.user.likes = [like for like in user_likes if like != liked_message]
+    else:
+        g.user.likes.append(liked_message)
+
+    db.session.commit()
+
+    return redirect("/")
+
+
 @app.route('/users/profile', methods=["GET", "POST"])
-def profile():
+def edit_profile():
     """Update profile for current user."""
 
     # IMPLEMENT THIS
@@ -229,11 +270,12 @@ def profile():
     # This is not a copy and paste, but an edit of broken code I had attempted with the blanks filled in here and there.
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     user = g.user
-    form = UserEditForm()
+    # I don't know why obj=user needs to be passed into this. And, oddly enough, it seems to work without it. Food for thought, I suppose.
+    form = UserEditForm(obj=user)
 
     if form.validate_on_submit():
         # My though process on this block of code:
@@ -246,8 +288,8 @@ def profile():
         if User.authenticate(user.username, form.password.data):
             user.username = form.username.data
             user.email = form.email.data
-            user.image_url = form.image_url.data
-            user.header_image_url = form.header_image_url.data
+            user.image_url = form.image_url.data or "/static/images/default-pic.png"
+            user.header_image_url = form.header_image_url.data or "/static/images/warbler-hero.jpg"
             user.bio = form.bio.data
 
             db.session.commit()
@@ -264,7 +306,7 @@ def delete_user():
     """Delete user."""
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     do_logout()
@@ -275,13 +317,19 @@ def delete_user():
     return redirect("/signup")
 
 
-@app.route('/users/add_like')
-def add_like():
-    """Shows page where liked messages are stored."""
+# Jared's Implementation
+# Odd; this doesn't appear in the solution, at least in this portion of code. Will see if it's implemented somewhere else, or just not needed.
+# Edit: Yes, they did use it; just in another spot. Line 237 for reference.
+#
+#
+#
+# @app.route('/users/add_like')
+# def add_like():
+#     """Shows page where liked messages are stored."""
 
-    if not g.user:
-        flash("Access unauthorized.", "danger")
-        return redirect("/")
+#     if not g.user:
+#         flash("Access Unauthorized.", "danger")
+#         return redirect("/")
 
 
 ##############################################################################
@@ -294,7 +342,7 @@ def messages_add():
     """
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     form = MessageForm()
@@ -322,7 +370,7 @@ def messages_destroy(message_id):
     """Delete a message."""
 
     if not g.user:
-        flash("Access unauthorized.", "danger")
+        flash("Access Unauthorized", "danger")
         return redirect("/")
 
     msg = Message.query.get(message_id)
@@ -336,8 +384,8 @@ def messages_destroy(message_id):
 # Homepage and error pages
 
 
-@app.route('/')
-def homepage():
+# @app.route('/')
+# def homepage():
     """Show homepage:
 
     - anon users: no messages
@@ -348,19 +396,19 @@ def homepage():
     # Step Six: Fix Homepage
     # The homepage for logged-in-users should show the last 100 warbles only from the users that the logged-in user is following, and that user, rather than warbles from all users.
     # I have altered my code further from my last email; (11-11-21 10:36 AM US time), and am now working through the many various 'following' classes, models, attributes, and so on. The base code uses that word a lot; one of them must be what I need. I'm just not sure which one.
-    if g.user:
-        messages = (Message
-                    .query
-                    .filter(g.user.is_following(Message.user))
-                    .order_by(Message.timestamp.desc())
-                    .limit(100)
-                    .all()
-                    )
-        return render_template('home.html', messages=messages)
+    # if g.user:
+    #     messages = (Message
+    #                 .query
+    #                 .filter(g.user.is_following(Message.user))
+    #                 .order_by(Message.timestamp.desc())
+    #                 .limit(100)
+    #                 .all()
+    #                 )
+    #     return render_template('home.html', messages=messages)
 
-    else:
-        return render_template('home-anon.html')
-    #
+    # else:
+    #     return render_template('home-anon.html')
+
     #
     # This 'returns' a page with no 'warbles' present.
 
@@ -374,14 +422,87 @@ def homepage():
     #     liked_msgs = [msg.id for msg in g.user.likes]
     #     user_id = g.user.id
 
-    #     return render_template('home.html', messages=messages, likes=liked_msgs, user_id=user_id)
+    #     return render_template('home.html', messages=messages, likes=liked_msgs)
 
     # else:
     #     return render_template('home-anon.html')
     #
     #
     #
+    #
+    #
+    #
     # This 'returns' a page with all 'warbles' pressent.
+    #
+    #
+
+# Sonia's Implementation: copy and pasted.
+# 11-12-21 (11:16 AM) US Time
+
+
+# @app.route('/')
+# def homepage():
+#     """Show homepage:
+
+#     - anon users: no messages
+#     - logged in: 100 most recent messages of followed_users
+#     """
+
+#     if g.user:
+#         messages = (Message
+#                     .query
+#                     .order_by(Message.timestamp.desc())
+#                     .limit(100)
+#                     .all())
+#         liked_msgs = [msg.id for msg in g.user.likes]
+#         user_id = g.user.id
+
+#         return render_template('home.html', messages=messages, likes=liked_msgs, user_id=user_id)
+
+#     else:
+#         return render_template('home-anon.html')
+
+@app.route('/')
+def homepage():
+    """Show homepage:
+
+    - anon users: no messages
+    - logged in: 100 most recent messages of followed_users
+    """
+    # Solution's Implementation
+    # Cries.
+    # Close! I was so close! I tried implementing some kind of array, or dictionary, that contains the messages that meet my criteria! But I placed mine after the .query, and it wasn't done well. So I deleted it...
+    if g.user:
+        following_ids = [f.id for f in g.user.following] + [g.user.id]
+
+        messages = (Message
+                    .query
+                    .filter(Message.user_id.in_(following_ids))
+                    # I am seriously red-faced upset at how close I was! I had this line! Almost letter for letter, I had this! So close...........
+                    # 'Credit' to Stackoverflow for the inspiration for one of my attempts.
+                    # https://stackoverflow.com/questions/8603088/sqlalchemy-in-clause
+                    .order_by(Message.timestamp.desc())
+                    .limit(100)
+                    .all())
+
+        return render_template('home.html', messages=messages)
+
+    else:
+        return render_template('home-anon.html')
+    # In conclusion, I had the .filter() idea. I had the extraction of following_ids idea. Didn't combine them, and trimmed down the failed ideas before submitting or saving any of it.
+
+
+# Jared's Implementation:
+# Interesting note; this block won't run.
+# builtins.AttributeError
+# AttributeError: 'Flask' object has no attribute 'error_handler'
+# Even when importing 'abort' from flask, it wouldn't run. It tried to import error_handler, and threw a whole new error.
+# My guess? Outdated code. But I don't know the new reference point, if one exists, so this is getting commented out.
+# @app.error_handler(404)
+# def page_not_found(e):
+#     """404 Not found Page."""
+
+#     return render_template('404.html', 404)
 
 
 ##############################################################################

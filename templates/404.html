@@ -1,0 +1,26 @@
+<!-- Jared's implementation: -->
+<!-- Technically the solution -->
+{% extends 'base.html' %} {% block body_class %}error-404{% endblock %} {% block
+content %}
+
+<div class="message-404">
+	<h4 class="display-4">Sorry, we're afraid that page doesn't exist! (Yet.)</h4>
+	<p class="m-3">
+		You can search Warbler's Users using the seach box below, or...
+		<a href="/"><b>return to the homepage.</b></a>
+	</p>
+	<div class="row">
+		<div class="col-sm-8 ml-auto mr-auto">
+			<form class="form-inline" action="/users">
+				<input
+					name="q"
+					class="form-control mb-0 mr-2"
+					placeholder="Search Warbler"
+				/>
+				<button class="btn btn-default">Search</button>
+			</form>
+		</div>
+	</div>
+</div>
+
+{% endblock %}

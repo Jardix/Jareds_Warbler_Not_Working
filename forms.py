@@ -27,6 +27,7 @@ class LoginForm(FlaskForm):
 # Jared's Imp
 # Step Five: Profile Edit:
 # I added a new class based on the UserAddForm, since it appeared to be pretty close to what I'd need.
+# Edit: Apparently it was spot-on to what was needed. Word for word with the solution.
 
 
 class UserEditForm(FlaskForm):
@@ -36,8 +37,5 @@ class UserEditForm(FlaskForm):
     email = StringField('E-mail', validators=[DataRequired(), Email()])
     image_url = StringField('(Optional) Image URL')
     header_image_url = StringField('(Optional) Header Image URL')
-    bio = TextAreaField('(Optional) Bio text', )
+    bio = TextAreaField('(Optional) Bio Description')
     password = PasswordField('Password', validators=[Length(min=6)])
-
-
-
